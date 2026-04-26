@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -27,21 +28,28 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardOptions
 import coil.compose.AsyncImage
 import com.example.booktrack.model.Shelf
 import com.example.booktrack.model.coverUrl
@@ -51,13 +59,61 @@ import com.example.booktrack.ui.BookViewModel
 @Composable
 fun DetailScreen(
     viewModel: BookViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onStartSession: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val book = uiState.selectedBook
 
+    var showSessionDialog by rememberSaveable { mutableStateOf(false) }
+    var startPageText by rememberSaveable { mutableStateOf("") }
+    var startPageError by rememberSaveable { mutableStateOf(false) }
+
     LaunchedEffect(book?.key) {
         book?.let { viewModel.fetchDescription(it) }
+    }
+
+    if (showSessionDialog && book != null) {
+        AlertDialog(
+            onDismissRequest = { showSessionDialog = false },
+            title = { Text("Start Reading Session") },
+            text = {
+                OutlinedTextField(
+                    value = startPageText,
+                    onValueChange = {
+                        startPageText = it.filter { c -> c.isDigit() }
+                        startPageError = false
+                    },
+                    label = { Text("Starting page") },
+                    isError = startPageError,
+                    supportingText = if (startPageError) {
+                        { Text("Enter a valid page number") }
+                    } else null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val page = startPageText.toIntOrNull()
+                    if (page == null || page < 0) {
+                        startPageError = true
+                        return@Button
+                    }
+                    viewModel.startReadingSession(book, page)
+                    showSessionDialog = false
+                    startPageText = ""
+                    onStartSession()
+                }) {
+                    Text("Start")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSessionDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -206,6 +262,17 @@ fun DetailScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
+
+            Button(
+                onClick = { showSessionDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Text("Start Reading Session")
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

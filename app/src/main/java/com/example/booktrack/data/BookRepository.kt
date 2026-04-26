@@ -2,6 +2,8 @@ package com.example.booktrack.data
 
 import com.example.booktrack.data.local.BookDao
 import com.example.booktrack.data.local.BookEntity
+import com.example.booktrack.data.local.ReadingSessionDao
+import com.example.booktrack.data.local.ReadingSessionEntity
 import com.example.booktrack.data.remote.OpenLibraryApi
 import com.example.booktrack.data.remote.extractDescription
 import com.example.booktrack.model.Book
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.map
 
 class BookRepository(
     private val dao: BookDao,
+    private val sessionDao: ReadingSessionDao,
     private val api: OpenLibraryApi
 ) {
     val library: Flow<Map<Shelf, List<Book>>> = dao.getAllBooks().map { entities ->
@@ -47,6 +50,28 @@ class BookRepository(
 
     suspend fun getBookByKey(key: String): Book? =
         dao.getBookByKey(key)?.toDomain()
+
+    suspend fun insertSession(
+        bookKey: String,
+        bookTitle: String,
+        startPage: Int,
+        endPage: Int,
+        startTimeMs: Long,
+        endTimeMs: Long,
+        durationMs: Long
+    ) {
+        sessionDao.insertSession(
+            ReadingSessionEntity(
+                bookKey = bookKey,
+                bookTitle = bookTitle,
+                startPage = startPage,
+                endPage = endPage,
+                startTimeMs = startTimeMs,
+                endTimeMs = endTimeMs,
+                durationMs = durationMs
+            )
+        )
+    }
 
     suspend fun fetchDescription(book: Book): String? {
         return try {

@@ -8,29 +8,51 @@ import com.example.booktrack.data.local.BookDatabase
 import com.example.booktrack.data.remote.RetrofitInstance
 import com.example.booktrack.model.Book
 import com.example.booktrack.model.Shelf
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class ActiveSession(
+    val book: Book,
+    val startPage: Int,
+    val startTimeMs: Long,
+    val elapsedSeconds: Long = 0
+)
+
+data class CompletedSession(
+    val bookTitle: String,
+    val startPage: Int,
+    val endPage: Int,
+    val durationMs: Long
+)
+
 data class BookUiState(
     val searchResults: List<Book> = emptyList(),
     val isSearching: Boolean = false,
     val searchError: String? = null,
     val library: Map<Shelf, List<Book>> = emptyMap(),
-    val selectedBook: Book? = null
+    val selectedBook: Book? = null,
+    val activeSession: ActiveSession? = null,
+    val completedSession: CompletedSession? = null
 )
 
 class BookViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val db = BookDatabase.getDatabase(application)
     private val repository = BookRepository(
-        dao = BookDatabase.getDatabase(application).bookDao(),
+        dao = db.bookDao(),
+        sessionDao = db.readingSessionDao(),
         api = RetrofitInstance.api
     )
 
     private val _uiState = MutableStateFlow(BookUiState())
     val uiState: StateFlow<BookUiState> = _uiState.asStateFlow()
+
+    private var timerJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -109,4 +131,55 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value.library.entries
             .firstOrNull { (_, books) -> books.any { it.key == key } }
             ?.key
+
+    fun startReadingSession(book: Book, startPage: Int) {
+        val startTimeMs = System.currentTimeMillis()
+        _uiState.update {
+            it.copy(activeSession = ActiveSession(book, startPage, startTimeMs))
+        }
+        timerJob?.cancel()
+        timerJob = viewModelScope.launch {
+            while (true) {
+                delay(1000)
+                _uiState.update { state ->
+                    val session = state.activeSession ?: return@update state
+                    val elapsed = (System.currentTimeMillis() - session.startTimeMs) / 1000
+                    state.copy(activeSession = session.copy(elapsedSeconds = elapsed))
+                }
+            }
+        }
+    }
+
+    fun endReadingSession(endPage: Int) {
+        timerJob?.cancel()
+        val session = _uiState.value.activeSession ?: return
+        val endTimeMs = System.currentTimeMillis()
+        val durationMs = endTimeMs - session.startTimeMs
+        viewModelScope.launch {
+            repository.insertSession(
+                bookKey = session.book.key,
+                bookTitle = session.book.title,
+                startPage = session.startPage,
+                endPage = endPage,
+                startTimeMs = session.startTimeMs,
+                endTimeMs = endTimeMs,
+                durationMs = durationMs
+            )
+            _uiState.update {
+                it.copy(
+                    activeSession = null,
+                    completedSession = CompletedSession(
+                        bookTitle = session.book.title,
+                        startPage = session.startPage,
+                        endPage = endPage,
+                        durationMs = durationMs
+                    )
+                )
+            }
+        }
+    }
+
+    fun clearCompletedSession() {
+        _uiState.update { it.copy(completedSession = null) }
+    }
 }

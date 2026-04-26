@@ -7,12 +7,16 @@ import androidx.navigation.compose.composable
 import com.example.booktrack.ui.BookViewModel
 import com.example.booktrack.ui.screens.DetailScreen
 import com.example.booktrack.ui.screens.LibraryScreen
+import com.example.booktrack.ui.screens.ReadingSessionScreen
 import com.example.booktrack.ui.screens.SearchScreen
+import com.example.booktrack.ui.screens.SessionSummaryScreen
 
 sealed class Screen(val route: String) {
     object Library : Screen("library")
     object Search : Screen("search")
     object Detail : Screen("detail")
+    object ReadingSession : Screen("reading_session")
+    object SessionSummary : Screen("session_summary")
 }
 
 @Composable
@@ -44,7 +48,28 @@ fun NavGraph(
         composable(Screen.Detail.route) {
             DetailScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onStartSession = { navController.navigate(Screen.ReadingSession.route) }
+            )
+        }
+        composable(Screen.ReadingSession.route) {
+            ReadingSessionScreen(
+                viewModel = viewModel,
+                onSessionEnded = {
+                    navController.navigate(Screen.SessionSummary.route) {
+                        popUpTo(Screen.ReadingSession.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable(Screen.SessionSummary.route) {
+            SessionSummaryScreen(
+                viewModel = viewModel,
+                onDone = {
+                    navController.navigate(Screen.Detail.route) {
+                        popUpTo(Screen.SessionSummary.route) { inclusive = true }
+                    }
+                }
             )
         }
     }
