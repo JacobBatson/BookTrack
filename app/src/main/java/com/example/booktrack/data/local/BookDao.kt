@@ -26,4 +26,7 @@ interface BookDao {
 
     @Query("UPDATE books SET description = :description WHERE `key` = :key")
     suspend fun updateDescription(key: String, description: String)
+
+    @Query("UPDATE books SET currentPage = :currentPage WHERE `key` = :key")
+    suspend fun updateCurrentPage(key: String, currentPage: Int)
 }

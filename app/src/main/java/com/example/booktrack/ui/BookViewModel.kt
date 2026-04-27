@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.booktrack.data.BookRepository
 import com.example.booktrack.data.local.BookDatabase
+import com.example.booktrack.data.local.ReadingSessionEntity
 import com.example.booktrack.data.remote.RetrofitInstance
 import com.example.booktrack.model.Book
 import com.example.booktrack.model.Shelf
@@ -37,7 +38,8 @@ data class BookUiState(
     val library: Map<Shelf, List<Book>> = emptyMap(),
     val selectedBook: Book? = null,
     val activeSession: ActiveSession? = null,
-    val completedSession: CompletedSession? = null
+    val completedSession: CompletedSession? = null,
+    val sessionsForSelectedBook: List<ReadingSessionEntity> = emptyList()
 )
 
 class BookViewModel(application: Application) : AndroidViewModel(application) {
@@ -53,6 +55,7 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<BookUiState> = _uiState.asStateFlow()
 
     private var timerJob: Job? = null
+    private var sessionsJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -81,6 +84,12 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val inLibrary = repository.getBookByKey(book.key)
             _uiState.update { it.copy(selectedBook = inLibrary ?: book) }
+        }
+        sessionsJob?.cancel()
+        sessionsJob = viewModelScope.launch {
+            repository.getSessionsForBook(book.key).collect { sessions ->
+                _uiState.update { it.copy(sessionsForSelectedBook = sessions) }
+            }
         }
     }
 
@@ -165,9 +174,12 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
                 endTimeMs = endTimeMs,
                 durationMs = durationMs
             )
+            repository.updateCurrentPage(session.book.key, endPage)
+            val updated = repository.getBookByKey(session.book.key)
             _uiState.update {
                 it.copy(
                     activeSession = null,
+                    selectedBook = updated ?: it.selectedBook,
                     completedSession = CompletedSession(
                         bookTitle = session.book.title,
                         startPage = session.startPage,

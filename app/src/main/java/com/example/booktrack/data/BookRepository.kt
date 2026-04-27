@@ -73,6 +73,13 @@ class BookRepository(
         )
     }
 
+    suspend fun updateCurrentPage(key: String, page: Int) {
+        dao.updateCurrentPage(key, page)
+    }
+
+    fun getSessionsForBook(bookKey: String): Flow<List<ReadingSessionEntity>> =
+        sessionDao.getSessionsForBook(bookKey)
+
     suspend fun fetchDescription(book: Book): String? {
         return try {
             val detail = api.getWork(book.key)
@@ -93,7 +100,8 @@ private fun BookEntity.toDomain(): Book = Book(
     author = author,
     coverId = coverId,
     description = description,
-    shelf = Shelf.valueOf(shelf)
+    shelf = Shelf.valueOf(shelf),
+    currentPage = currentPage
 )
 
 private fun Book.toEntity(shelf: Shelf): BookEntity = BookEntity(
@@ -102,5 +110,6 @@ private fun Book.toEntity(shelf: Shelf): BookEntity = BookEntity(
     author = author,
     coverId = coverId,
     description = description,
-    shelf = shelf.name
+    shelf = shelf.name,
+    currentPage = currentPage
 )

@@ -6,7 +6,8 @@ data class Book(
     val author: String,
     val coverId: Int?,
     val description: String?,
-    val shelf: Shelf? = null
+    val shelf: Shelf? = null,
+    val currentPage: Int = 0
 )
 
 fun Book.coverUrl(size: String = "M"): String? =
