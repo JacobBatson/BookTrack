@@ -18,8 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
@@ -63,8 +63,7 @@ import com.example.booktrack.ui.BookViewModel
 @Composable
 fun SearchScreen(
     viewModel: BookViewModel,
-    onBookClick: (Book) -> Unit,
-    onBack: () -> Unit
+    onBookClick: (Book) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
@@ -74,16 +73,12 @@ fun SearchScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Search Books") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             )
-        }
+        },
+        contentWindowInsets = WindowInsets(0)
     ) { innerPadding ->
         Column(
             modifier = Modifier
