@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -73,11 +74,40 @@ fun DetailScreen(
     val sessions = uiState.sessionsForSelectedBook
 
     var showSessionDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var startPageText by rememberSaveable { mutableStateOf("") }
     var startPageError by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(book?.key) {
         book?.let { viewModel.fetchDescription(it) }
+    }
+
+    if (showDeleteDialog && book != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Remove book?") },
+            text = { Text("\"${book.title}\" will be removed from your library.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.removeFromLibrary(book.key)
+                        showDeleteDialog = false
+                        onBack()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    ),
+                    modifier = Modifier.testTag("delete_confirm_button")
+                ) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showSessionDialog && book != null) {
@@ -101,17 +131,20 @@ fun DetailScreen(
                 )
             },
             confirmButton = {
-                Button(onClick = {
-                    val page = startPageText.toIntOrNull()
-                    if (page == null || page < 0) {
-                        startPageError = true
-                        return@Button
-                    }
-                    viewModel.startReadingSession(book, page)
-                    showSessionDialog = false
-                    startPageText = ""
-                    onStartSession()
-                }) {
+                Button(
+                    onClick = {
+                        val page = startPageText.toIntOrNull()
+                        if (page == null || page < 0) {
+                            startPageError = true
+                            return@Button
+                        }
+                        viewModel.startReadingSession(book, page)
+                        showSessionDialog = false
+                        startPageText = ""
+                        onStartSession()
+                    },
+                    modifier = Modifier.testTag("session_start_confirm")
+                ) {
                     Text("Start")
                 }
             },
@@ -134,7 +167,10 @@ fun DetailScreen(
                 },
                 actions = {
                     if (book?.shelf != null) {
-                        IconButton(onClick = { viewModel.removeFromLibrary(book.key) }) {
+                        IconButton(
+                            onClick = { showDeleteDialog = true },
+                            modifier = Modifier.testTag("detail_delete_button")
+                        ) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "Remove from library",
@@ -187,7 +223,7 @@ fun DetailScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 24.dp).testTag("detail_book_title")
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -197,7 +233,7 @@ fun DetailScreen(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 24.dp).testTag("detail_book_author")
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -225,6 +261,7 @@ fun DetailScreen(
                         Shelf.entries.forEach { shelf ->
                             FilterChip(
                                 selected = book.shelf == shelf,
+                                modifier = Modifier.weight(1f).testTag("shelf_chip_${shelf.name}"),
                                 onClick = {
                                     if (book.shelf == null) {
                                         viewModel.addToShelf(book, shelf)
@@ -237,8 +274,7 @@ fun DetailScreen(
                                         text = shelf.label,
                                         style = MaterialTheme.typography.labelSmall
                                     )
-                                },
-                                modifier = Modifier.weight(1f)
+                                }
                             )
                         }
                     }
@@ -331,6 +367,7 @@ fun DetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
+                    .testTag("start_session_button")
             ) {
                 Text("Start Reading Session")
             }

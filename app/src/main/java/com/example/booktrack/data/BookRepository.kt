@@ -80,6 +80,8 @@ class BookRepository(
     fun getSessionsForBook(bookKey: String): Flow<List<ReadingSessionEntity>> =
         sessionDao.getSessionsForBook(bookKey)
 
+    fun getAllSessions(): Flow<List<ReadingSessionEntity>> = sessionDao.getAllSessions()
+
     suspend fun fetchDescription(book: Book): String? {
         return try {
             val detail = api.getWork(book.key)

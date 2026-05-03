@@ -2,6 +2,7 @@ package com.example.booktrack.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -17,6 +18,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.booktrack.ui.BookViewModel
+import com.example.booktrack.ui.screens.CalendarScreen
 import com.example.booktrack.ui.screens.DetailScreen
 import com.example.booktrack.ui.screens.LibraryScreen
 import com.example.booktrack.ui.screens.ReadingSessionScreen
@@ -26,12 +28,17 @@ import com.example.booktrack.ui.screens.SessionSummaryScreen
 sealed class Screen(val route: String) {
     object Library : Screen("library")
     object Search : Screen("search")
+    object Calendar : Screen("calendar")
     object Detail : Screen("detail")
     object ReadingSession : Screen("reading_session")
     object SessionSummary : Screen("session_summary")
 }
 
-private val bottomNavRoutes = setOf(Screen.Library.route, Screen.Search.route)
+private val bottomNavRoutes = setOf(
+    Screen.Library.route,
+    Screen.Search.route,
+    Screen.Calendar.route
+)
 
 @Composable
 fun NavGraph(
@@ -73,6 +80,20 @@ fun NavGraph(
                             }
                         }
                     )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.DateRange, contentDescription = null) },
+                        label = { Text("Calendar") },
+                        selected = currentRoute == Screen.Calendar.route,
+                        onClick = {
+                            navController.navigate(Screen.Calendar.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -99,6 +120,9 @@ fun NavGraph(
                         navController.navigate(Screen.Detail.route)
                     }
                 )
+            }
+            composable(Screen.Calendar.route) {
+                CalendarScreen(viewModel = viewModel)
             }
             composable(Screen.Detail.route) {
                 DetailScreen(

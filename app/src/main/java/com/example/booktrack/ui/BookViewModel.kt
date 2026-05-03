@@ -1,6 +1,8 @@
 package com.example.booktrack.ui
 
 import android.app.Application
+import android.content.ContentValues
+import android.provider.CalendarContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.booktrack.data.BookRepository
@@ -9,6 +11,7 @@ import com.example.booktrack.data.local.ReadingSessionEntity
 import com.example.booktrack.data.remote.RetrofitInstance
 import com.example.booktrack.model.Book
 import com.example.booktrack.model.Shelf
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Calendar
+import java.util.TimeZone
 
 data class ActiveSession(
     val book: Book,
@@ -28,7 +33,9 @@ data class CompletedSession(
     val bookTitle: String,
     val startPage: Int,
     val endPage: Int,
-    val durationMs: Long
+    val durationMs: Long,
+    val startTimeMs: Long,
+    val endTimeMs: Long
 )
 
 data class BookUiState(
@@ -39,17 +46,19 @@ data class BookUiState(
     val selectedBook: Book? = null,
     val activeSession: ActiveSession? = null,
     val completedSession: CompletedSession? = null,
-    val sessionsForSelectedBook: List<ReadingSessionEntity> = emptyList()
+    val sessionsForSelectedBook: List<ReadingSessionEntity> = emptyList(),
+    val allSessions: List<ReadingSessionEntity> = emptyList(),
+    val readingStreak: Int = 0,
 )
 
-class BookViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val db = BookDatabase.getDatabase(application)
-    private val repository = BookRepository(
-        dao = db.bookDao(),
-        sessionDao = db.readingSessionDao(),
+class BookViewModel(
+    application: Application,
+    private val repository: BookRepository = BookRepository(
+        dao = BookDatabase.getDatabase(application).bookDao(),
+        sessionDao = BookDatabase.getDatabase(application).readingSessionDao(),
         api = RetrofitInstance.api
     )
+) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(BookUiState())
     val uiState: StateFlow<BookUiState> = _uiState.asStateFlow()
@@ -61,6 +70,16 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.library.collect { lib ->
                 _uiState.update { it.copy(library = lib) }
+            }
+        }
+        viewModelScope.launch {
+            repository.getAllSessions().collect { sessions ->
+                _uiState.update { state ->
+                    state.copy(
+                        allSessions = sessions,
+                        readingStreak = computeStreak(sessions)
+                    )
+                }
             }
         }
     }
@@ -184,7 +203,9 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
                         bookTitle = session.book.title,
                         startPage = session.startPage,
                         endPage = endPage,
-                        durationMs = durationMs
+                        durationMs = durationMs,
+                        startTimeMs = session.startTimeMs,
+                        endTimeMs = endTimeMs
                     )
                 )
             }
@@ -193,5 +214,61 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearCompletedSession() {
         _uiState.update { it.copy(completedSession = null) }
+    }
+
+    fun insertCalendarEvent(session: CompletedSession) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val app = getApplication<Application>()
+                val calendarId = getDefaultCalendarId() ?: return@launch
+                val pagesRead = (session.endPage - session.startPage).coerceAtLeast(0)
+                val values = ContentValues().apply {
+                    put(CalendarContract.Events.CALENDAR_ID, calendarId)
+                    put(CalendarContract.Events.TITLE, "Reading: ${session.bookTitle}")
+                    put(CalendarContract.Events.DESCRIPTION,
+                        "Pages ${session.startPage} → ${session.endPage} ($pagesRead pages read)")
+                    put(CalendarContract.Events.DTSTART, session.startTimeMs)
+                    put(CalendarContract.Events.DTEND, session.endTimeMs)
+                    put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+                }
+                app.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun getDefaultCalendarId(): Long? {
+        val app = getApplication<Application>()
+        val projection = arrayOf(CalendarContract.Calendars._ID)
+        val selection = "${CalendarContract.Calendars.VISIBLE} = 1"
+        return app.contentResolver.query(
+            CalendarContract.Calendars.CONTENT_URI,
+            projection, selection, null,
+            "${CalendarContract.Calendars.IS_PRIMARY} DESC"
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getLong(0) else null
+        }
+    }
+
+    private fun computeStreak(sessions: List<ReadingSessionEntity>): Int {
+        if (sessions.isEmpty()) return 0
+        val cal = Calendar.getInstance()
+        fun normalizeDay(ms: Long): Long {
+            cal.timeInMillis = ms
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            return cal.timeInMillis
+        }
+        val today = normalizeDay(System.currentTimeMillis())
+        val oneDayMs = 24 * 60 * 60 * 1000L
+        val readDays = sessions.map { normalizeDay(it.startTimeMs) }.toHashSet()
+        var checkDay = if (today in readDays) today else today - oneDayMs
+        var streak = 0
+        while (checkDay in readDays) {
+            streak++
+            checkDay -= oneDayMs
+        }
+        return streak
     }
 }

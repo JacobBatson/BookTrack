@@ -1,5 +1,9 @@
 package com.example.booktrack.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
@@ -21,13 +25,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.example.booktrack.ui.BookViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,6 +46,28 @@ fun SessionSummaryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val session = uiState.completedSession
+    val context = LocalContext.current
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.WRITE_CALENDAR] == true &&
+                      permissions[Manifest.permission.READ_CALENDAR] == true
+        if (granted) session?.let { viewModel.insertCalendarEvent(it) }
+    }
+
+    LaunchedEffect(session?.bookTitle) {
+        session ?: return@LaunchedEffect
+        val hasWrite = ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED
+        val hasRead = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
+        if (hasWrite && hasRead) {
+            viewModel.insertCalendarEvent(session)
+        } else {
+            permissionLauncher.launch(
+                arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR)
+            )
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -86,13 +116,14 @@ fun SessionSummaryScreen(
                 text = session.bookTitle,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                modifier = Modifier.testTag("summary_book_title")
             )
 
             Spacer(modifier = Modifier.height(40.dp))
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("summary_stats_card"),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
@@ -125,6 +156,7 @@ fun SessionSummaryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 32.dp)
+                    .testTag("summary_done_button")
             ) {
                 Text("Done")
             }

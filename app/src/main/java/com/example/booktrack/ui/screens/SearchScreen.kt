@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -90,7 +91,8 @@ fun SearchScreen(
                 onValueChange = { query = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .testTag("search_field"),
                 placeholder = { Text("Search by title or author...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
@@ -105,7 +107,7 @@ fun SearchScreen(
             when {
                 uiState.isSearching -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(modifier = Modifier.testTag("search_loading"))
                     }
                 }
 
@@ -114,14 +116,19 @@ fun SearchScreen(
                         Text(
                             uiState.searchError!!,
                             color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.testTag("search_error")
                         )
                     }
                 }
 
                 uiState.searchResults.isEmpty() && query.isNotBlank() -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No results found", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "No results found",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.testTag("search_no_results")
+                        )
                     }
                 }
 
@@ -158,6 +165,7 @@ private fun SearchBookCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            .testTag("search_book_card_${book.key}")
             .clickable(onClick = onCardClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
